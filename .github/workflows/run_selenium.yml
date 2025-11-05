@@ -8,33 +8,38 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Step 1: Checkout your repository
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Step 2: Set up Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      # Step 3: Install dependencies
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      # Step 4: Install Google Chrome
       - name: Install Google Chrome
         run: |
           sudo apt-get update
-          sudo apt-get install -y wget unzip curl
+          sudo apt-get install -y wget gnupg unzip
           wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
           echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
           sudo apt-get update
           sudo apt-get install -y google-chrome-stable
           google-chrome --version
 
+      # Step 5: Install matching ChromeDriver (optimized version)
       - name: Install matching ChromeDriver
         run: |
-          CHROME_VERSION=$(google-chrome --version | grep -oE '[0-9]+\.')
-          CHROME_VERSION=${CHROME_VERSION::-1}
+          CHROME_VERSION=$(dpkg-query -W -f='${Version}' google-chrome-stable | cut -d'.' -f1)
+          echo "Detected Chrome major version: $CHROME_VERSION"
           DRIVER_VERSION=$(curl -s https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION} || curl -s https://chromedriver.storage.googleapis.com/LATEST_RELEASE)
           echo "Installing ChromeDriver version: $DRIVER_VERSION"
           wget -q https://chromedriver.storage.googleapis.com/${DRIVER_VERSION}/chromedriver_linux64.zip
@@ -43,6 +48,7 @@ jobs:
           sudo chmod +x /usr/local/bin/chromedriver
           chromedriver --version
 
+      # Step 6: Run your Selenium script
       - name: Run Selenium script
         env:
           DOWNLOAD_DIR: ${{ github.workspace }}/downloads
@@ -50,6 +56,7 @@ jobs:
           mkdir -p downloads
           python stats_nz_scraper.py
 
+      # Step 7: Upload the downloaded files as an artifact
       - name: Upload downloaded files
         uses: actions/upload-artifact@v4
         with:
