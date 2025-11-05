@@ -24,20 +24,24 @@ jobs:
       - name: Install Google Chrome
         run: |
           sudo apt-get update
-          sudo apt-get install -y wget unzip
+          sudo apt-get install -y wget unzip curl
           wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-          sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list'
+          echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
           sudo apt-get update
           sudo apt-get install -y google-chrome-stable
+          google-chrome --version
 
       - name: Install matching ChromeDriver
         run: |
-          CHROME_VERSION=$(google-chrome --version | grep -oE '[0-9]+' | head -1)
-          DRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION}")
-          wget https://chromedriver.storage.googleapis.com/${DRIVER_VERSION}/chromedriver_linux64.zip
+          CHROME_VERSION=$(google-chrome --version | grep -oE '[0-9]+\.')
+          CHROME_VERSION=${CHROME_VERSION::-1}
+          DRIVER_VERSION=$(curl -s https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION} || curl -s https://chromedriver.storage.googleapis.com/LATEST_RELEASE)
+          echo "Installing ChromeDriver version: $DRIVER_VERSION"
+          wget -q https://chromedriver.storage.googleapis.com/${DRIVER_VERSION}/chromedriver_linux64.zip
           unzip chromedriver_linux64.zip
           sudo mv chromedriver /usr/local/bin/
           sudo chmod +x /usr/local/bin/chromedriver
+          chromedriver --version
 
       - name: Run Selenium script
         env:
