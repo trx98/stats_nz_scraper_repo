@@ -1,14 +1,15 @@
+import os
+import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.ui import Select
-from selenium.webdriver.support.ui import WebDriverWait
-import time, os
+from selenium.webdriver.support.ui import Select, WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 def setup_driver(download_dir):
     options = Options()
-    options.add_argument("--headless=new")
+    options.add_argument("--headless=new")  # Headless mode for GitHub runner
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-blink-features=AutomationControlled")
@@ -23,22 +24,25 @@ def setup_driver(download_dir):
     }
     options.add_experimental_option("prefs", prefs)
 
-    service = Service()
+    service = Service("/usr/local/bin/chromedriver")
     driver = webdriver.Chrome(service=service, options=options)
-    driver.set_window_size(1920, 1080)
     return driver
 
-
 def main():
-    download_dir = os.environ.get("DOWNLOAD_DIR", os.path.join(os.getcwd(), "downloads"))
+    download_dir = os.getenv("DOWNLOAD_DIR", os.path.join(os.getcwd(), "downloads"))
     os.makedirs(download_dir, exist_ok=True)
+
+    print(f"Download directory: {download_dir}")
+
     driver = setup_driver(download_dir)
+    wait = WebDriverWait(driver, 20)
 
     try:
-        print("Opening site...")
+        print("Opening website...")
         driver.get("https://infoshare.stats.govt.nz/")
         time.sleep(5)
 
+        print("Navigating through menus...")
         driver.find_element(By.LINK_TEXT, "Browse").click()
         time.sleep(3)
         driver.find_element(By.LINK_TEXT, "Imports and exports").click()
@@ -48,75 +52,48 @@ def main():
         driver.find_element(By.LINK_TEXT, "Imports - confidential - values and quantities (Annual-Jun)").click()
         time.sleep(7)
 
-        print("Clicking all 'Select all' buttons...")
-        buttons = driver.find_elements(By.XPATH, "//span[contains(translate(text(),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'select all')]")
-        for b in buttons:
+        print("Selecting all variables...")
+        select_all_elements = driver.find_elements(By.XPATH, "//span[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'select all')]")
+        for elem in select_all_elements:
             try:
-                driver.execute_script("arguments[0].scrollIntoView(true);", b)
+                driver.execute_script("arguments[0].scrollIntoView(true);", elem)
                 time.sleep(1)
-                b.click()
+                elem.click()
                 time.sleep(1)
             except Exception as e:
-                print("Error clicking button:", e)
+                print(f"Could not click one element: {e}")
 
+        print("Selecting CSV format...")
         dropdown = driver.find_element(By.NAME, "ctl00$MainContent$dlOutputOptions")
         select = Select(dropdown)
-        found = False
-        for text in ["Comma delimited (.csv)", "CSV file", ".csv", "csv"]:
-            try:
-                select.select_by_visible_text(text)
-                print("Selected", text)
-                found = True
+        for opt in select.options:
+            if "csv" in opt.text.lower():
+                select.select_by_visible_text(opt.text)
+                print(f"Selected format: {opt.text}")
                 break
-            except:
-                continue
-        if not found:
-            for opt in select.options:
-                if "csv" in opt.text.lower():
-                    select.select_by_visible_text(opt.text)
-                    print("Selected", opt.text)
-                    break
 
-        print("Looking for Go button...")
-        selectors = [
-            "//input[@type='submit' and contains(@value,'Go')]",
-            "//input[contains(@value,'Go')]",
-            "//button[contains(text(),'Go')]",
-            "//*[@id='ctl00_MainContent_btnGo']",
-            "//input[@name='ctl00$MainContent$btnGo']"
-        ]
+        print("Finding Go button...")
+        go_button = driver.find_element(By.XPATH, "//input[contains(@value, 'Go')]")
+        driver.execute_script("arguments[0].scrollIntoView(true);", go_button)
+        go_button.click()
+        print("Clicked Go button, waiting for download...")
 
-        go_button = None
-        for s in selectors:
-            try:
-                go_button = driver.find_element(By.XPATH, s)
-                break
-            except:
-                continue
-
-        if go_button:
-            driver.execute_script("arguments[0].scrollIntoView(true);", go_button)
+        for i in range(40):
             time.sleep(1)
-            go_button.click()
-            print("Clicked Go button")
-        else:
-            print("Go button not found")
-
-        print("Waiting for download...")
-        for i in range(60):
-            if os.listdir(download_dir):
-                print("Download complete:", os.listdir(download_dir))
+            files = os.listdir(download_dir)
+            if files:
+                print(f"✅ Download completed: {files}")
                 break
-            time.sleep(1)
+            if i % 5 == 0:
+                print(f"Waiting... {i}s")
         else:
-            print("No file downloaded within 60 seconds")
+            print("❌ No download detected")
 
     except Exception as e:
-        print("Error:", e)
+        print(f"Error occurred: {e}")
     finally:
         driver.quit()
-        print("Done")
-
+        print("Browser closed.")
 
 if __name__ == "__main__":
     main()
