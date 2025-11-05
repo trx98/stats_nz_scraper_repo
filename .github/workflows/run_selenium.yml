@@ -5,7 +5,7 @@ on:
 
 jobs:
   selenium_job:
-    runs_on: ubuntu-latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
@@ -21,20 +21,25 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Install Chrome
+      - name: Install Google Chrome
         run: |
+          sudo apt-get update
+          sudo apt-get install -y wget unzip
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list'
           sudo apt-get update
           sudo apt-get install -y google-chrome-stable
 
-      - name: Install ChromeDriver
+      - name: Install matching ChromeDriver
         run: |
-          DRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE")
+          CHROME_VERSION=$(google-chrome --version | grep -oE '[0-9]+' | head -1)
+          DRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION}")
           wget https://chromedriver.storage.googleapis.com/${DRIVER_VERSION}/chromedriver_linux64.zip
           unzip chromedriver_linux64.zip
           sudo mv chromedriver /usr/local/bin/
-          chmod +x /usr/local/bin/chromedriver
+          sudo chmod +x /usr/local/bin/chromedriver
 
-      - name: Run script
+      - name: Run Selenium script
         env:
           DOWNLOAD_DIR: ${{ github.workspace }}/downloads
         run: |
